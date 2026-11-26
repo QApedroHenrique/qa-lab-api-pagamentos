@@ -76,3 +76,9 @@ CREATE TABLE IF NOT EXISTS entregas_webhook (
   criada_em           TIMESTAMPTZ NOT NULL DEFAULT now(),
   atualizada_em       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Índices nas chaves estrangeiras consultadas com frequência
+-- (o Postgres não cria índice automático para FK, só para PK/UNIQUE).
+CREATE INDEX IF NOT EXISTS idx_transferencias_origem ON transferencias (conta_origem_id);
+CREATE INDEX IF NOT EXISTS idx_transferencias_destino ON transferencias (conta_destino_id);
+CREATE INDEX IF NOT EXISTS idx_entregas_assinatura ON entregas_webhook (assinatura_id, id DESC);

@@ -8,7 +8,7 @@ então dá para ir do documento ao código e do relatório de execução ao docu
 A consistência entre este arquivo e a suíte é verificada automaticamente no CI
 (`npm run docs:verificar`).
 
-**Resumo:** 107 casos de teste → 171 execuções (casos com várias entradas usam `test.each`)
+**Resumo:** 110 casos de teste → 183 execuções (casos com várias entradas usam `test.each`)
 \+ 21 requisições / 114 asserções na regressão Postman.
 
 ### Legenda das técnicas (nomenclatura ISTQB CTFL)
@@ -183,6 +183,9 @@ A consistência entre este arquivo e a suíte é verificada automaticamente no C
 | CT-SEG-08 | Não expõe `X-Powered-By` | RN-13 | SEG | 🟢 |
 | CT-SEG-09 | `X-Request-Id` em toda resposta, propagado quando seguro e descartado quando malicioso | RN-13 | SEG | 🟢 |
 | CT-SEG-10 | Rota inexistente → 404 padronizado sem stack trace | RN-13 | SEG | 🟢 |
+| CT-SEG-11 | `NODE_ENV=production` sem segredos (ou com o padrão público) → API não inicia, exit 1, sem expor valor | RN-15 | SEG, PE | 🔴 |
+| CT-SEG-12 | `NODE_ENV=production` com segredos próprios → API inicia | RN-15 | SEG, PE | 🟡 |
+| CT-SEG-13 | URL de webhook para localhost, rede privada, metadados da nuvem, IPv6 loopback, IPv4 mapeado ou IP decimal → 400 (SSRF) | RN-16 | SEG, PE | 🔴 |
 
 ## Concorrência — `tests/concorrencia/concorrencia.test.js`
 
@@ -260,3 +263,5 @@ Fluxo ponta a ponta em que cada requisição usa dados da anterior. Além das as
 | RN-12 Concorrência | CT-CNC-01 a 05 | — |
 | RN-13 Padrão de erros | CT-CON-06 a 08, 10, 11, CT-CTR-01 a 05, CT-SEG-04, 05, 08 a 10 | todas (validação geral) |
 | RN-14 Limites técnicos | CT-SEG-06 | — |
+| RN-15 Segredos em produção | CT-SEG-11, 12 | — |
+| RN-16 Destino de webhook (anti-SSRF) | CT-SEG-13 (e CT-WHK-01 a 12 com o host liberado) | — |

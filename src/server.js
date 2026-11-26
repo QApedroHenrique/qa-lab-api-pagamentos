@@ -3,8 +3,9 @@ const { criarApp } = require('./app');
 const { migrar } = require('./db/migrate');
 const { pool } = require('./db/pool');
 
-/** Aplica o schema e sobe o servidor HTTP. Retorna o servidor (usado também pelo setup dos testes). */
+/** Valida a configuração, aplica o schema e sobe o servidor HTTP. Retorna o servidor (usado também pelo setup dos testes). */
 async function iniciar(porta = config.porta) {
+  config.validarConfiguracao(); // RN-15: falha antes de tocar no banco
   await migrar();
   const app = criarApp();
   return new Promise((resolve) => {

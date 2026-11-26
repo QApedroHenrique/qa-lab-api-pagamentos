@@ -5,6 +5,7 @@ const webhooks = require('../servicos/webhooks');
 const { exigirToken } = require('../middlewares/autenticacao');
 const { erros } = require('../utils/erros');
 const { verificarAssinatura } = require('../utils/assinatura');
+const { destinoPermitido } = require('../utils/destino-webhook');
 const { ehObjeto, ehUuid, garantirUuid, validarValor, lancarSeHouverErros } = require('../utils/validacao');
 
 const router = express.Router();
@@ -48,14 +49,20 @@ router.post('/assinaturas', async (req, res) => {
   const corpo = ehObjeto(req.body) ? req.body : {};
   const detalhes = [];
 
-  let urlValida = false;
+  let url = null;
   try {
-    const url = new URL(corpo.url);
-    urlValida = ['http:', 'https:'].includes(url.protocol);
+    url = new URL(corpo.url);
   } catch {
-    urlValida = false;
+    url = null;
   }
-  if (!urlValida) detalhes.push({ campo: 'url', mensagem: 'Deve ser uma URL http(s) válida.' });
+  if (!url || !['http:', 'https:'].includes(url.protocol)) {
+    detalhes.push({ campo: 'url', mensagem: 'Deve ser uma URL http(s) válida.' });
+  } else if (!destinoPermitido(url, config.webhookHostsPermitidos)) {
+    detalhes.push({
+      campo: 'url',
+      mensagem: 'Destino não permitido: endereços locais ou de rede interna são bloqueados.',
+    });
+  }
 
   const eventosValidos =
     Array.isArray(corpo.eventos) &&

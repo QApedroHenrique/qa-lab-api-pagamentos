@@ -1,6 +1,6 @@
 {
   "name": "qa-lab-api-pagamentos",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Laboratório de QA: API de pagamentos fictícia com suíte completa de testes de API, contrato, webhooks, concorrência e dados (SQL).",
   "main": "src/server.js",
   "scripts": {

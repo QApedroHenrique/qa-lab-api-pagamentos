@@ -84,6 +84,10 @@ O provedor PIX (fictício) avisa a API que uma conta recebeu dinheiro, chamando 
 - A resposta gravada é a da **criação**: repetir a chave depois de um estorno devolve a transferência
   como foi criada (status `CONCLUIDA`), sem nova cobrança.
 - Requisições **simultâneas** com a mesma chave resultam em **uma única** transferência.
+- **Decisão explícita:** como o erro não fica gravado, um `422 SALDO_INSUFICIENTE` repetido com a mesma
+  chave depois de um depósito vira `201` (coberto por CT-IDE-05). É o comportamento desejado: a operação
+  nunca aconteceu, então a nova tentativa é legítima.
+- As chaves **não expiram** (sem TTL). Ver [limitações conhecidas](arquitetura.md#7-limitações-conhecidas-e-próximos-passos).
 
 ## RN-09 — Estorno
 
@@ -122,6 +126,7 @@ stateDiagram-v2
   com intervalo crescente (backoff exponencial). Depois disso a entrega fica como `FALHOU`.
 - O histórico de entregas fica disponível em `GET /webhooks/assinaturas/{id}/entregas`.
 - Só são enviados os eventos que o parceiro assinou. Assinaturas removidas deixam de receber eventos.
+- A URL cadastrada não pode apontar para a rede interna (RN-16).
 
 ## RN-12 — Concorrência
 
@@ -139,3 +144,21 @@ crédito de PIX duplicado ou travamento (*deadlock*) em transferências cruzadas
 ## RN-14 — Limites técnicos
 
 - O corpo da requisição tem limite de **100 KB** → acima disso, **413 `CORPO_MUITO_GRANDE`**.
+
+## RN-15 — Segredos em produção
+
+- Com `NODE_ENV=production`, a API **se recusa a iniciar** (código de saída 1) se `JWT_SECRET`,
+  `API_CLIENT_SECRET` ou `PIX_WEBHOOK_SECRET` estiverem ausentes, vazios ou iguais ao valor padrão
+  do ambiente local (que é público, está no repositório).
+- A mensagem de erro cita apenas o **nome** das variáveis, nunca o valor.
+- Fora de produção, os valores padrão fictícios continuam valendo (ambiente local, testes e `docker compose`).
+
+## RN-16 — Destino permitido para webhooks (anti-SSRF)
+
+- `POST /webhooks/assinaturas` recusa com **400 `DADOS_INVALIDOS`** (campo `url`) URLs que apontam para:
+  `localhost`, `*.localhost`, `*.local`, `*.internal`; IPv4 `0.0.0.0/8`, `10/8`, `100.64/10`, `127/8`,
+  `169.254/16` (metadados da nuvem), `172.16/12`, `192.168/16`, `224/4` em diante;
+  IPv6 `::`, `::1`, `fc00::/7`, `fe80::/10` e IPv4 mapeado em IPv6.
+- Formas alternativas de escrever o IP (`http://2130706433`, `http://0x7f.1`) são normalizadas antes da checagem.
+- Exceção configurável por ambiente: `WEBHOOK_HOSTS_PERMITIDOS` (hosts separados por vírgula).
+  A suíte de testes libera apenas `127.0.0.1`, onde roda o receptor falso.

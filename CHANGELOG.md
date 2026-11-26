@@ -2,6 +2,26 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [1.1.0] — 2026-11-26
+
+Aplicação de uma revisão externa da arquitetura.
+
+### Segurança
+- **RN-15:** com `NODE_ENV=production`, a API não inicia sem `JWT_SECRET`, `API_CLIENT_SECRET` e
+  `PIX_WEBHOOK_SECRET` próprios (CT-SEG-11, CT-SEG-12). O `docker compose` de demonstração roda como `development`.
+- **RN-16:** `POST /webhooks/assinaturas` recusa URLs para localhost e redes internas (anti-SSRF), com exceções
+  em `WEBHOOK_HOSTS_PERMITIDOS` (CT-SEG-13).
+
+### Corrigido
+- `emTransacao`: falha no ROLLBACK não mascara mais o erro original e a conexão quebrada é descartada.
+- `limparBanco()` recusa bancos não locais (exceto com `PERMITIR_LIMPEZA_BANCO=true`) e produção.
+- CT-WHK-07 e CT-WHK-08 esperam a mudança de status da entrega em vez de usar espera fixa.
+
+### Adicionado
+- Índices em `transferencias(conta_origem_id)`, `transferencias(conta_destino_id)` e `entregas_webhook(assinatura_id)`.
+- Documentação: fluxo de estorno, nota sobre o diagrama ER e a referência polimórfica de `lancamentos`,
+  decisão explícita sobre idempotência após erro e seção **Limitações conhecidas e próximos passos**.
+
 ## [1.0.0] — 2026-11-26
 
 ### Adicionado

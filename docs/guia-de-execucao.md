@@ -118,11 +118,17 @@ Todas as variáveis estão em [`.env.example`](../.env.example). Sem `.env`, a A
 | `WEBHOOK_MAX_TENTATIVAS` | `3` | Tentativas de entrega de webhook |
 | `WEBHOOK_INTERVALO_BASE_MS` | `200` (50 nos testes) | Intervalo inicial entre tentativas |
 | `TOLERANCIA_ASSINATURA_SEGUNDOS` | `300` | Janela de validade da assinatura HMAC |
+| `WEBHOOK_HOSTS_PERMITIDOS` | vazio (`127.0.0.1` nos testes) | Hosts internos liberados no cadastro de webhook (RN-16) |
+| `NODE_ENV` | — | Com `production`, exige `JWT_SECRET`, `API_CLIENT_SECRET` e `PIX_WEBHOOK_SECRET` próprios (RN-15) |
+| `PERMITIR_LIMPEZA_BANCO` | — | `true` libera a limpeza do banco pela suíte quando o host não é local |
 
 ## 8. Problemas comuns
 
 | Sintoma | Causa provável | Solução |
 |---|---|---|
+| `NODE_ENV=production exige segredos próprios` | Imagem Docker rodando sem os segredos | Defina as três variáveis citadas, ou use o `docker compose` (demonstração) |
+| `limparBanco() recusado` | `DATABASE_URL` aponta para um banco que não é local | Aponte para um banco de teste local, ou defina `PERMITIR_LIMPEZA_BANCO=true` se ele for descartável |
+| Cadastro de webhook local retorna 400 "rede interna" | Bloqueio anti-SSRF | Libere o host em `WEBHOOK_HOSTS_PERMITIDOS` (ex.: `127.0.0.1`) |
 | `ECONNREFUSED 127.0.0.1:5432` | Banco não está rodando | `docker compose up -d db` e aguarde alguns segundos |
 | `port is already allocated` ao subir o banco | Já existe um PostgreSQL na porta 5432 | Pare o outro serviço ou mude a porta no `docker-compose.yml` e na `DATABASE_URL` |
 | Newman falha em `Gerar token` | A API não está rodando | Rode `npm start` em outro terminal antes |

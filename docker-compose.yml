@@ -29,6 +29,10 @@ services:
     environment:
       DATABASE_URL: postgres://qa:qa@db:5432/pagamentos
       PORT: 3000
+      # Ambiente de DEMONSTRAÇÃO: usa os segredos fictícios padrão.
+      # A imagem roda com NODE_ENV=production e, nesse modo, a API se recusa a iniciar
+      # sem JWT_SECRET, API_CLIENT_SECRET e PIX_WEBHOOK_SECRET próprios (RN-15).
+      NODE_ENV: development
     ports:
       - "3000:3000"
 

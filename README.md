@@ -8,7 +8,7 @@ de testes automatizados.**
 
 [![Testes](https://github.com/QApedroHenrique/qa-lab-api-pagamentos/actions/workflows/testes.yml/badge.svg)](https://github.com/QApedroHenrique/qa-lab-api-pagamentos/actions/workflows/testes.yml)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=nodedotjs&logoColor=white)
-![Jest](https://img.shields.io/badge/Jest-171_testes-C21325?logo=jest&logoColor=white)
+![Jest](https://img.shields.io/badge/Jest-183_testes-C21325?logo=jest&logoColor=white)
 ![Postman](https://img.shields.io/badge/Postman-Newman-FF6C37?logo=postman&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6BA539?logo=openapiinitiative&logoColor=white)
@@ -28,7 +28,7 @@ de testes automatizados.**
 | | |
 |---|---|
 | **O que é** | Uma API de pagamentos **fictícia**, criada do zero como sistema sob teste, e toda a estratégia de QA em volta dela |
-| **Testes automatizados** | **171 testes** (107 casos documentados) em Jest: funcionais, contrato, segurança, concorrência e validação SQL |
+| **Testes automatizados** | **183 testes** (110 casos documentados) em Jest: funcionais, contrato, segurança, concorrência e validação SQL |
 | **Regressão Postman** | **21 requisições encadeadas / 114 asserções**, rodando pelo Newman |
 | **Qualidade dos testes** | **8 de 8 bugs inseridos de propósito foram detectados** ([teste de mutação](docs/relatorio-de-execucao.md#teste-de-mutação-manual)) |
 | **Documentação** | Plano de teste, regras de negócio, casos com rastreabilidade, arquitetura, OpenAPI + Swagger |
@@ -69,10 +69,10 @@ creditado sem existir ou dado pessoal vazado.
 | Webhook de entrada (PIX) | 20 | Assinatura HMAC, corpo adulterado, replay (5 min), evento repetido |
 | Webhooks de saída | 17 | Payload, assinatura, **retentativas com 500/503**, parceiro fora do ar |
 | Contrato (OpenAPI) | 13 | Toda resposta validada contra o `openapi.yaml`, a mesma doc publicada |
-| Segurança | 20 | Rotas protegidas, **LGPD (CPF nunca exposto)**, SQL injection, 413 |
+| Segurança | 32 | Rotas protegidas, **LGPD (CPF nunca exposto)**, SQL injection, **SSRF**, segredos em produção |
 | Concorrência | 5 | **10 transferências simultâneas**, mesma chave em paralelo, deadlock |
 | Dados (SQL) | 7 | Saldo × livro-razão, conservação do dinheiro, PIX creditado uma vez |
-| **Total** | **171** | |
+| **Total** | **183** | |
 
 ---
 
@@ -125,6 +125,18 @@ Todo teste tem um ID (`[CT-TRF-05]`) que aparece no [catálogo de casos](docs/ca
 CI (`npm run docs:verificar`) **quebra o pipeline** se existir teste sem documentação ou caso documentado sem teste.
 </details>
 
+<details>
+<summary><b>Revisão externa aplicada e limitações assumidas</b></summary>
+
+Uma revisão externa da arquitetura apontou riscos reais. Os pequenos e testáveis viraram regra e teste:
+a API **não inicia em produção com segredo padrão** (CT-SEG-11/12), o cadastro de webhook **bloqueia SSRF**
+para rede interna e metadados da nuvem (CT-SEG-13), além de índices em FKs, ROLLBACK protegido, trava contra
+`TRUNCATE` em banco não local e esperas por condição no lugar de `sleep`. O que exige mudança de arquitetura
+(outbox para webhooks, autorização por recurso/BOLA, TTL de idempotência, migrações versionadas) está em
+[**Limitações conhecidas e próximos passos**](docs/arquitetura.md#7-limitações-conhecidas-e-próximos-passos),
+com o risco concreto e como cada item seria testado.
+</details>
+
 ---
 
 ## 🏗️ Arquitetura
@@ -152,7 +164,7 @@ cd qa-lab-api-pagamentos
 
 docker compose up -d db   # PostgreSQL
 npm install
-npm test                  # sobe a API, limpa o banco e roda os 171 testes
+npm test                  # sobe a API, limpa o banco e roda os 183 testes
 ```
 
 | Comando | O que faz |
@@ -196,7 +208,7 @@ O [`CLAUDE.md`](CLAUDE.md) dá o contexto fixo do projeto (stack, comandos e reg
 | Documento | Conteúdo |
 |---|---|
 | [Plano de teste](docs/plano-de-teste.md) | Escopo, abordagem, técnicas, riscos, critérios de entrada e saída |
-| [Regras de negócio](docs/regras-de-negocio.md) | Requisitos RN-01 a RN-14 (a base dos testes) |
+| [Regras de negócio](docs/regras-de-negocio.md) | Requisitos RN-01 a RN-16 (a base dos testes) |
 | [Casos de teste](docs/casos-de-teste.md) | 107 casos com regra, técnica (ISTQB), prioridade e matriz de cobertura |
 | [Relatório de execução](docs/relatorio-de-execucao.md) | Resultados, teste de mutação e riscos residuais |
 | [Arquitetura](docs/arquitetura.md) | Componentes, modelo de dados, fluxos e decisões técnicas |

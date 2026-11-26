@@ -11,6 +11,8 @@ module.exports = async () => {
 
   // Retentativas de webhook mais rápidas só no ambiente de teste
   process.env.WEBHOOK_INTERVALO_BASE_MS = process.env.WEBHOOK_INTERVALO_BASE_MS || '50';
+  // O receptor de webhook falso escuta em 127.0.0.1: só esse host interno é liberado (RN-16)
+  process.env.WEBHOOK_HOSTS_PERMITIDOS = process.env.WEBHOOK_HOSTS_PERMITIDOS || '127.0.0.1';
 
   const { iniciar } = require('../../src/server');
   const { migrar, limparBanco } = require('../../src/db/migrate');

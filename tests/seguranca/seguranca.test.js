@@ -119,3 +119,98 @@ describe('Segurança — cabeçalhos e mensagens de erro', () => {
     expect(JSON.stringify(resposta.data)).not.toMatch(/at .*\.js|node_modules/);
   });
 });
+
+describe('Segurança — configuração de produção (RN-15)', () => {
+  const path = require('path');
+  const { spawn } = require('child_process');
+  const SERVIDOR = path.join(__dirname, '..', '..', 'src', 'server.js');
+
+  /**
+   * Sobe a API como um PROCESSO separado (como no Docker) e devolve o que aconteceu:
+   * { iniciou, codigoSaida, saida }. Se ela iniciar, o processo é encerrado logo em seguida.
+   */
+  function executarApi(variaveis) {
+    return new Promise((resolve, reject) => {
+      const processo = spawn(process.execPath, [SERVIDOR], {
+        env: { ...process.env, PORT: '0', ...variaveis },
+      });
+      let saida = '';
+      let iniciou = false;
+      const limite = setTimeout(() => {
+        processo.kill();
+        reject(new Error(`A API não iniciou nem encerrou a tempo. Saída:\n${saida}`));
+      }, 15000);
+      const ler = (parte) => {
+        saida += parte;
+        if (!iniciou && /rodando em/.test(saida)) {
+          iniciou = true;
+          processo.kill();
+        }
+      };
+      processo.stdout.on('data', ler);
+      processo.stderr.on('data', ler);
+      processo.on('exit', (codigoSaida) => {
+        clearTimeout(limite);
+        resolve({ iniciou, codigoSaida, saida });
+      });
+    });
+  }
+
+  const SEM_SEGREDOS = { JWT_SECRET: '', API_CLIENT_SECRET: '', PIX_WEBHOOK_SECRET: '' };
+
+  test('[CT-SEG-11] em produção, sem segredos próprios, a API se recusa a iniciar', async () => {
+    const semNenhum = await executarApi({ NODE_ENV: 'production', ...SEM_SEGREDOS });
+    const comPadraoPublico = await executarApi({
+      NODE_ENV: 'production',
+      JWT_SECRET: 'jwt-segredo-local', // valor que está no repositório = não é segredo
+      API_CLIENT_SECRET: 'segredo-proprio-1',
+      PIX_WEBHOOK_SECRET: 'segredo-proprio-2',
+    });
+
+    expect(semNenhum.iniciou).toBe(false);
+    expect(semNenhum.codigoSaida).toBe(1);
+    for (const variavel of ['JWT_SECRET', 'API_CLIENT_SECRET', 'PIX_WEBHOOK_SECRET']) {
+      expect(semNenhum.saida).toContain(variavel);
+    }
+
+    expect(comPadraoPublico.iniciou).toBe(false);
+    expect(comPadraoPublico.codigoSaida).toBe(1);
+    expect(comPadraoPublico.saida).toContain('JWT_SECRET');
+    expect(comPadraoPublico.saida).not.toContain('jwt-segredo-local'); // nunca expõe o valor
+  });
+
+  test('[CT-SEG-12] em produção, com segredos próprios, a API inicia normalmente', async () => {
+    const resultado = await executarApi({
+      NODE_ENV: 'production',
+      JWT_SECRET: 'segredo-proprio-jwt',
+      API_CLIENT_SECRET: 'segredo-proprio-cliente',
+      PIX_WEBHOOK_SECRET: 'segredo-proprio-pix',
+    });
+
+    expect(resultado.iniciou).toBe(true);
+  });
+});
+
+describe('Segurança — SSRF no cadastro de webhook (RN-16)', () => {
+  test.each([
+    ['localhost', 'http://localhost:8080/webhook'],
+    ['subdomínio de localhost', 'http://api.localhost/webhook'],
+    ['metadados da nuvem', 'http://169.254.169.254/latest/meta-data/'],
+    ['rede privada 10.x', 'http://10.0.0.5/webhook'],
+    ['rede privada 172.16.x', 'https://172.16.10.1/webhook'],
+    ['rede privada 192.168.x', 'http://192.168.0.10/webhook'],
+    ['0.0.0.0', 'http://0.0.0.0:3000/webhook'],
+    ['loopback IPv6', 'http://[::1]:3000/webhook'],
+    ['loopback em IPv4 mapeado em IPv6', 'http://[::ffff:127.0.0.2]/webhook'],
+    ['loopback escrito como número decimal', 'http://2130706434/webhook'],
+  ])('[CT-SEG-13] URL de webhook para %s é recusada (400)', async (_caso, url) => {
+    const api = await apiAutenticada();
+    const resposta = await api.post('/webhooks/assinaturas', { url, eventos: ['transferencia.concluida'] });
+
+    expect(resposta.status).toBe(400);
+    expect(resposta.data.erro.codigo).toBe('DADOS_INVALIDOS');
+    expect(resposta.data.erro.detalhes).toEqual([
+      { campo: 'url', mensagem: expect.stringMatching(/rede interna/) },
+    ]);
+  });
+});

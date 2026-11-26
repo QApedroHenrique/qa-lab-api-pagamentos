@@ -1,6 +1,7 @@
 const { apiAutenticada } = require('../helpers/api');
 const { assinaturaConfere } = require('../helpers/assinatura');
 const { ReceptorWebhook } = require('../helpers/receptor-webhook');
+const { aguardarAte } = require('../helpers/esperar');
 const { criarConta, criarContaComSaldo, transferir } = require('../helpers/fabricas');
 
 /**
@@ -27,6 +28,15 @@ describe('Webhooks de saída — notificações para parceiros', () => {
     const destino = await criarConta();
     const { resposta } = await transferir({ origem: origem.id, destino: destino.id, valor });
     return resposta.data;
+  }
+
+  /** Consulta o histórico de entregas até a mais recente satisfazer a condição. */
+  async function aguardarEntrega(condicao) {
+    return aguardarAte(
+      async () => (await api.get(`/webhooks/assinaturas/${assinatura.id}/entregas`)).data,
+      (data) => condicao(data.entregas?.[0]),
+      { descricao: 'mudança de status da entrega' },
+    );
   }
 
   const doEvento = (transferenciaId, tipo) => (r) =>
@@ -116,8 +126,8 @@ describe('Webhooks de saída — notificações para parceiros', () => {
     expect(tentativas.map((t) => t.headers['x-tentativa'])).toEqual(['1', '2', '3']);
     expect(new Set(tentativas.map((t) => t.headers['x-evento-id'])).size).toBe(1); // mesmo evento
 
-    await new Promise((r) => setTimeout(r, 200));
-    const { data } = await api.get(`/webhooks/assinaturas/${assinatura.id}/entregas`);
+    // A API grava o status DEPOIS de receber a resposta do parceiro: espera o registro mudar
+    const data = await aguardarEntrega((e) => e?.status === 'ENTREGUE');
     expect(data).toSeguirContrato('ListaEntregas');
     expect(data.entregas[0]).toMatchObject({ status: 'ENTREGUE', tentativas: 3, ultimo_status_http: 200 });
   });
@@ -128,10 +138,10 @@ describe('Webhooks de saída — notificações para parceiros', () => {
     const transferencia = await novaTransferencia();
 
     await receptor.aguardar(doEvento(transferencia.id, 'transferencia.concluida'), { quantidade: 3 });
-    await new Promise((r) => setTimeout(r, 600));
+    // FALHOU é estado final: depois dele não há nova tentativa, então a contagem já é definitiva
+    const data = await aguardarEntrega((e) => e?.status === 'FALHOU');
 
     expect(receptor.filtrar(doEvento(transferencia.id, 'transferencia.concluida'))).toHaveLength(3);
-    const { data } = await api.get(`/webhooks/assinaturas/${assinatura.id}/entregas`);
     expect(data.entregas[0]).toMatchObject({ status: 'FALHOU', tentativas: 3, ultimo_status_http: 500 });
   });
 
