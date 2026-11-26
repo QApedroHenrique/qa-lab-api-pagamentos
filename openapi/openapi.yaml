@@ -1,0 +1,568 @@
+openapi: 3.1.0
+info:
+  title: API de Pagamentos — QA Lab (fictícia)
+  version: 1.0.0
+  summary: Carteira digital fictícia criada para demonstrar testes de API e integrações.
+  description: |
+    API **100% fictícia**, criada do zero como objeto de teste de um portfólio de QA.
+    Nenhum dado, regra ou código foi copiado de empresas reais.
+
+    **Conceitos cobertos:** autenticação por token, contas com CPF mascarado (LGPD),
+    PIX recebido via webhook assinado (HMAC), transferências com `Idempotency-Key`,
+    estornos, extrato (livro-razão) e webhooks de saída com retentativas.
+
+    **Valores monetários** são sempre inteiros em **centavos** (`1050` = R$ 10,50).
+
+    **Formato padrão de erro:** `{ "erro": { "codigo": "...", "mensagem": "...", "detalhes": [] } }`
+  contact:
+    name: Pedro Henrique Barbosa dos Santos
+    url: https://www.linkedin.com/in/pedro-henrique-996aa7355/
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Ambiente local
+
+tags:
+  - name: Saúde
+  - name: Autenticação
+  - name: Contas
+  - name: Transferências
+  - name: Webhooks de entrada
+    description: Notificações enviadas pelo provedor PIX fictício para esta API.
+  - name: Webhooks de saída
+    description: Notificações que esta API envia para sistemas parceiros.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /saude:
+    get:
+      tags: [Saúde]
+      summary: Verifica se a API e o banco estão no ar
+      security: []
+      responses:
+        '200':
+          description: Tudo funcionando
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Saude' }
+        '503':
+          description: Banco de dados indisponível
+
+  /auth/token:
+    post:
+      tags: [Autenticação]
+      summary: Gera um token de acesso (client_credentials)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenRequisicao' }
+            example: { client_id: qa-lab, client_secret: segredo-local-123 }
+      responses:
+        '200':
+          description: Token gerado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResposta' }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401':
+          description: Credenciais incorretas (`CREDENCIAIS_INVALIDAS`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+
+  /contas:
+    post:
+      tags: [Contas]
+      summary: Cria uma conta (saldo inicial zero)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovaConta' }
+            example: { nome: Maria Fictícia, documento: '52998224725' }
+      responses:
+        '201':
+          description: Conta criada. O header `Location` aponta para a nova conta.
+          headers:
+            Location: { schema: { type: string }, description: URL da conta criada }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Conta' }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '409':
+          description: Documento já cadastrado (`DOCUMENTO_JA_CADASTRADO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+
+  /contas/{id}:
+    get:
+      tags: [Contas]
+      summary: Consulta uma conta e seu saldo
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Conta encontrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Conta' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /contas/{id}/extrato:
+    get:
+      tags: [Contas]
+      summary: Extrato da conta (lançamentos mais recentes primeiro)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: limite
+          in: query
+          description: Quantidade máxima de lançamentos (padrão 50)
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Extrato
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Extrato' }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /transferencias:
+    post:
+      tags: [Transferências]
+      summary: Transfere saldo entre contas (idempotente)
+      description: |
+        Exige o header `Idempotency-Key`. Repetir a mesma requisição com a mesma chave
+        devolve **a mesma resposta** (com o header `Idempotency-Replayed: true`) e **não**
+        debita a conta de novo. Usar a mesma chave com um corpo diferente retorna `422`.
+        Respostas de erro não ficam gravadas: depois de um erro, a mesma chave pode ser usada de novo.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,100}$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovaTransferencia' }
+      responses:
+        '201':
+          description: Transferência concluída (ou repetição de uma já concluída)
+          headers:
+            Location: { schema: { type: string } }
+            Idempotency-Replayed: { schema: { type: string, enum: ['true'] }, description: Presente quando a resposta é uma repetição }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transferencia' }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '422':
+          description: '`SALDO_INSUFICIENTE`, `CONTAS_IGUAIS` ou `CHAVE_IDEMPOTENCIA_REUTILIZADA`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+
+  /transferencias/{id}:
+    get:
+      tags: [Transferências]
+      summary: Consulta uma transferência
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Transferência encontrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transferencia' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /transferencias/{id}/estorno:
+    post:
+      tags: [Transferências]
+      summary: Estorna uma transferência concluída
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Transferência estornada (status `ESTORNADA`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transferencia' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '409':
+          description: Já estornada (`TRANSFERENCIA_JA_ESTORNADA`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+        '422':
+          description: Destino sem saldo para devolver (`SALDO_INSUFICIENTE_PARA_ESTORNO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+
+  /webhooks/pix:
+    post:
+      tags: [Webhooks de entrada]
+      summary: Recebe a notificação de um PIX (enviada pelo provedor)
+      description: |
+        Autenticado por **assinatura HMAC-SHA256** no header `X-Assinatura`, no formato
+        `t=<timestamp_unix>,v1=<hmac_hex>`, onde o HMAC é calculado sobre `"<timestamp>.<corpo_bruto>"`.
+        Assinaturas com mais de 5 minutos são recusadas (proteção contra replay).
+        É **idempotente por `evento_id`**: reenvios do mesmo evento não creditam de novo.
+      security: []
+      parameters:
+        - name: X-Assinatura
+          in: header
+          required: true
+          schema: { type: string, example: 't=1767225600,v1=5f2b...' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventoPix' }
+      responses:
+        '200':
+          description: Evento processado (`PROCESSADO`) ou já recebido antes (`JA_PROCESSADO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespostaPix' }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401':
+          description: Assinatura ausente, inválida ou expirada (`ASSINATURA_INVALIDA`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /webhooks/assinaturas:
+    post:
+      tags: [Webhooks de saída]
+      summary: Cadastra uma URL para receber eventos
+      description: O `segredo` usado para validar as assinaturas é exibido **apenas nesta resposta**.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NovaAssinatura' }
+      responses:
+        '201':
+          description: Assinatura criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssinaturaCriada' }
+        '400': { $ref: '#/components/responses/DadosInvalidos' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /webhooks/assinaturas/{id}:
+    delete:
+      tags: [Webhooks de saída]
+      summary: Remove uma assinatura
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '204': { description: Removida }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /webhooks/assinaturas/{id}/entregas:
+    get:
+      tags: [Webhooks de saída]
+      summary: Histórico de entregas (inclui retentativas)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Lista de entregas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListaEntregas' }
+        '400': { $ref: '#/components/responses/IdInvalido' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+webhooks:
+  transferencia.concluida:
+    post:
+      tags: [Webhooks de saída]
+      summary: Enviado quando uma transferência é concluída
+      description: |
+        Headers enviados: `X-Evento-Id`, `X-Evento-Tipo`, `X-Tentativa` e `X-Assinatura`
+        (HMAC-SHA256 com o `segredo` da assinatura). Qualquer resposta `2xx` confirma a entrega;
+        caso contrário a API tenta de novo até 3 vezes, com intervalo crescente.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventoWebhook' }
+      responses:
+        '200': { description: Recebido pelo parceiro }
+  transferencia.estornada:
+    post:
+      tags: [Webhooks de saída]
+      summary: Enviado quando uma transferência é estornada
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventoWebhook' }
+      responses:
+        '200': { description: Recebido pelo parceiro }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    DadosInvalidos:
+      description: Corpo, parâmetro ou header inválido (`DADOS_INVALIDOS` / `JSON_INVALIDO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+    IdInvalido:
+      description: O id informado não é um UUID (`ID_INVALIDO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+    NaoAutenticado:
+      description: Token ausente, inválido ou expirado (`NAO_AUTENTICADO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+    NaoEncontrado:
+      description: Recurso não encontrado (`NAO_ENCONTRADO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+
+  schemas:
+    Centavos:
+      type: integer
+      minimum: 1
+      description: Valor em centavos (inteiro)
+
+    DataHora:
+      type: string
+      format: date-time
+
+    Erro:
+      type: object
+      additionalProperties: false
+      required: [erro]
+      properties:
+        erro:
+          type: object
+          additionalProperties: false
+          required: [codigo, mensagem]
+          properties:
+            codigo: { type: string, pattern: '^[A-Z_]+$' }
+            mensagem: { type: string, minLength: 1 }
+            detalhes:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                additionalProperties: false
+                required: [campo, mensagem]
+                properties:
+                  campo: { type: string }
+                  mensagem: { type: string }
+
+    Saude:
+      type: object
+      additionalProperties: false
+      required: [status, banco]
+      properties:
+        status: { type: string, enum: [ok] }
+        banco: { type: string, enum: [ok] }
+
+    TokenRequisicao:
+      type: object
+      required: [client_id, client_secret]
+      properties:
+        client_id: { type: string }
+        client_secret: { type: string }
+
+    TokenResposta:
+      type: object
+      additionalProperties: false
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: { type: string, pattern: '^[\w-]+\.[\w-]+\.[\w-]+$' }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, minimum: 1 }
+
+    NovaConta:
+      type: object
+      required: [nome, documento]
+      properties:
+        nome: { type: string, minLength: 3, maxLength: 100 }
+        documento: { type: string, pattern: '^\d{11}$', description: CPF válido, só números }
+
+    Conta:
+      type: object
+      additionalProperties: false
+      required: [id, nome, documento_mascarado, saldo, criada_em]
+      properties:
+        id: { type: string, format: uuid }
+        nome: { type: string }
+        documento_mascarado:
+          type: string
+          pattern: '^\*\*\*\.\d{3}\.\d{3}-\*\*$'
+          description: CPF mascarado — o documento completo nunca é devolvido
+          examples: ['***.982.247-**']
+        saldo: { type: integer, minimum: 0 }
+        criada_em: { $ref: '#/components/schemas/DataHora' }
+
+    Lancamento:
+      type: object
+      additionalProperties: false
+      required: [id, tipo, origem, valor, referencia_id, criado_em]
+      properties:
+        id: { type: integer }
+        tipo: { type: string, enum: [CREDITO, DEBITO] }
+        origem: { type: string, enum: [PIX_RECEBIDO, TRANSFERENCIA, ESTORNO] }
+        valor: { $ref: '#/components/schemas/Centavos' }
+        referencia_id: { type: string, description: id da transferência ou do evento PIX }
+        criado_em: { $ref: '#/components/schemas/DataHora' }
+
+    Extrato:
+      type: object
+      additionalProperties: false
+      required: [conta_id, saldo, lancamentos]
+      properties:
+        conta_id: { type: string, format: uuid }
+        saldo: { type: integer, minimum: 0 }
+        lancamentos:
+          type: array
+          items: { $ref: '#/components/schemas/Lancamento' }
+
+    NovaTransferencia:
+      type: object
+      required: [conta_origem_id, conta_destino_id, valor]
+      properties:
+        conta_origem_id: { type: string, format: uuid }
+        conta_destino_id: { type: string, format: uuid }
+        valor:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          description: Em centavos. Máximo R$ 10.000,00 por transferência.
+        descricao: { type: [string, 'null'], maxLength: 140 }
+
+    Transferencia:
+      type: object
+      additionalProperties: false
+      required: [id, conta_origem_id, conta_destino_id, valor, descricao, status, criada_em, estornada_em]
+      properties:
+        id: { type: string, format: uuid }
+        conta_origem_id: { type: string, format: uuid }
+        conta_destino_id: { type: string, format: uuid }
+        valor: { $ref: '#/components/schemas/Centavos' }
+        descricao: { type: [string, 'null'] }
+        status: { type: string, enum: [CONCLUIDA, ESTORNADA] }
+        criada_em: { $ref: '#/components/schemas/DataHora' }
+        estornada_em:
+          oneOf:
+            - { type: 'null' }
+            - { $ref: '#/components/schemas/DataHora' }
+
+    EventoPix:
+      type: object
+      required: [evento_id, tipo, conta_id, valor]
+      properties:
+        evento_id: { type: string, pattern: '^[A-Za-z0-9._:-]{1,100}$' }
+        tipo: { type: string, enum: [pix.recebido] }
+        conta_id: { type: string, format: uuid }
+        valor: { $ref: '#/components/schemas/Centavos' }
+
+    RespostaPix:
+      type: object
+      additionalProperties: false
+      required: [evento_id, status]
+      properties:
+        evento_id: { type: string }
+        status: { type: string, enum: [PROCESSADO, JA_PROCESSADO] }
+
+    NovaAssinatura:
+      type: object
+      required: [url, eventos]
+      properties:
+        url: { type: string, format: uri }
+        eventos:
+          type: array
+          minItems: 1
+          items: { type: string, enum: [transferencia.concluida, transferencia.estornada] }
+
+    AssinaturaCriada:
+      type: object
+      additionalProperties: false
+      required: [id, url, eventos, ativa, criada_em, segredo]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        eventos:
+          type: array
+          items: { type: string, enum: [transferencia.concluida, transferencia.estornada] }
+        ativa: { type: boolean }
+        criada_em: { $ref: '#/components/schemas/DataHora' }
+        segredo: { type: string, pattern: '^whsec_[a-f0-9]{48}$' }
+
+    Entrega:
+      type: object
+      additionalProperties: false
+      required: [id, evento_id, tipo_evento, status, tentativas, ultimo_status_http, criada_em, atualizada_em]
+      properties:
+        id: { type: integer }
+        evento_id: { type: string, format: uuid }
+        tipo_evento: { type: string, enum: [transferencia.concluida, transferencia.estornada] }
+        status: { type: string, enum: [PENDENTE, ENTREGUE, FALHOU] }
+        tentativas: { type: integer, minimum: 0, maximum: 3 }
+        ultimo_status_http: { type: [integer, 'null'] }
+        criada_em: { $ref: '#/components/schemas/DataHora' }
+        atualizada_em: { $ref: '#/components/schemas/DataHora' }
+
+    ListaEntregas:
+      type: object
+      additionalProperties: false
+      required: [entregas]
+      properties:
+        entregas:
+          type: array
+          items: { $ref: '#/components/schemas/Entrega' }
+
+    EventoWebhook:
+      type: object
+      additionalProperties: false
+      required: [id, tipo, criado_em, dados]
+      properties:
+        id: { type: string, format: uuid }
+        tipo: { type: string, enum: [transferencia.concluida, transferencia.estornada] }
+        criado_em: { $ref: '#/components/schemas/DataHora' }
+        dados:
+          type: object
+          additionalProperties: false
+          required: [transferencia]
+          properties:
+            transferencia: { $ref: '#/components/schemas/Transferencia' }
