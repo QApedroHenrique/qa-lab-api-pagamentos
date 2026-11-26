@@ -78,7 +78,7 @@ jobs:
 
       - name: Preparar relatórios para o GitHub Pages
         if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: reports/
 
