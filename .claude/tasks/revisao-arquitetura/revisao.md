@@ -18,4 +18,4 @@
 | 🟢 | `tests/seguranca/seguranca.test.js` | CT-SEG-12 depende do Postgres porque o start aplica o schema (aceito, a suíte já exige banco). |
 
 ## Execução
-A máquina local não tem Node/Postgres; a validação foi feita pelo GitHub Actions após o push (ver resultado no commit).
+A máquina local não tem Node/Postgres; a validação foi feita no GitHub Actions (run 45893354568): `docs:verificar` ok, Jest **183/183**, Newman ok.

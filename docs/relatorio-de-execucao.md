@@ -1,15 +1,15 @@
 # Relatório de execução
 
-Resumo da execução de referência da versão **1.0.0**. A cada push, o GitHub Actions gera os relatórios
+Resumo da execução de referência da versão **1.1.0**. A cada push, o GitHub Actions gera os relatórios
 HTML atualizados (artefato `relatorios-de-teste` e GitHub Pages).
 
 ## Resultado geral
 
 | Suíte | Executado | Passou | Falhou | Tempo |
 |---|---|---|---|---|
-| Jest — 12 arquivos, 107 casos | 171 testes | **171** | 0 | ~7 s |
+| Jest — 12 arquivos, 110 casos | 183 testes | **183** | 0 | — |
 | Newman — regressão encadeada | 21 requisições · 114 asserções | **114** | 0 | < 1 s |
-| Rastreabilidade (`docs:verificar`) | 107 casos | **107** | 0 | — |
+| Rastreabilidade (`docs:verificar`) | 110 casos | **110** | 0 | — |
 
 **Ambiente:** Node.js 22 · PostgreSQL 16 · Linux.
 
@@ -26,10 +26,10 @@ HTML atualizados (artefato `relatorios-de-teste` e GitHub Pages).
 | Webhook de entrada (PIX) | `funcional/webhook-pix.test.js` | 20 |
 | Webhooks de saída | `funcional/webhooks-saida.test.js` | 17 |
 | Contrato (OpenAPI) | `contrato/contratos.test.js` | 13 |
-| Segurança | `seguranca/seguranca.test.js` | 20 |
+| Segurança | `seguranca/seguranca.test.js` | 32 |
 | Concorrência | `concorrencia/concorrencia.test.js` | 5 |
 | Consistência de dados (SQL) | `dados/consistencia.test.js` | 7 |
-| **Total** | | **171** |
+| **Total** | | **183** |
 
 ## Teste de mutação manual
 
