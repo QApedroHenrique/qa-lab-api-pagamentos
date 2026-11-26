@@ -1,0 +1,50 @@
+{
+  "name": "qa-lab-api-pagamentos",
+  "version": "1.0.0",
+  "description": "Laboratório de QA: API de pagamentos fictícia com suíte completa de testes de API, contrato, webhooks, concorrência e dados (SQL).",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "db:migrar": "node src/db/migrate.js",
+    "test": "jest --runInBand",
+    "test:ci": "jest --runInBand --ci --json --outputFile=reports/jest/resultado.json",
+    "test:newman": "newman run postman/qa-lab-api-pagamentos.postman_collection.json -e postman/local.postman_environment.json -r cli,htmlextra,json --reporter-htmlextra-export reports/newman/index.html --reporter-htmlextra-title \"Regressão Postman — API de Pagamentos\" --reporter-json-export reports/newman/resultado.json",
+    "relatorios": "node scripts/resumo-relatorios.js",
+    "docs:verificar": "node scripts/verificar-rastreabilidade.js"
+  },
+  "keywords": [
+    "qa",
+    "testes-de-api",
+    "jest",
+    "postman",
+    "newman",
+    "webhooks",
+    "idempotencia",
+    "sql",
+    "github-actions",
+    "openapi"
+  ],
+  "author": "Pedro Henrique Barbosa dos Santos",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1",
+    "swagger-ui-express": "^5.0.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "axios": "^1.21.1",
+    "jest": "^30.5.2",
+    "jest-html-reporters": "^3.1.7",
+    "newman": "^6.2.3",
+    "newman-reporter-htmlextra": "^1.23.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "private": true
+}
