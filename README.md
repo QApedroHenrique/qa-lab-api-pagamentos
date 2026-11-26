@@ -14,12 +14,37 @@ de testes automatizados.**
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6BA539?logo=openapiinitiative&logoColor=white)
 ![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-blue)
 
+[**👋 Apresentação**](#-apresentação-sem-termos-técnicos) ·
 [**📊 Ver relatórios de teste**](https://QApedroHenrique.github.io/qa-lab-api-pagamentos/) ·
 [**📚 Documentação**](#-documentação) ·
 [**🤖 Fluxo com IA**](#-desenvolvimento-assistido-por-ia-claude-code) ·
 [**▶️ Como rodar**](#️-como-rodar)
 
 </div>
+
+---
+
+## 👋 Apresentação (sem termos técnicos)
+
+> Sabe quando você faz um PIX, o app trava e bate o medo de ter pago duas vezes?
+> **Meu trabalho como QA é garantir que isso não aconteça.**
+
+Para mostrar como faço isso, criei um **sistema de pagamentos de mentira** (PIX, transferências e estornos,
+com dados 100% fictícios) e um conjunto de **183 testes automáticos** que verificam o tempo todo se ele
+se comporta bem. Por exemplo:
+
+- 💸 **Dá para pagar duas vezes sem querer?** Não: repetir a mesma operação não cobra de novo.
+- 🧮 **O dinheiro sempre "bate"?** Sim: confiro direto no banco de dados que nenhum valor é criado ou some.
+- 👥 **E se muita gente usar ao mesmo tempo?** Testo isso, porque é onde aparecem os erros mais difíceis.
+- 🔒 **Dados pessoais estão protegidos?** O CPF completo nunca aparece, nem em mensagens de erro.
+
+**Como sei que os testes funcionam?** Coloquei 8 erros de propósito no sistema, e os testes pegaram os 8.
+Além disso, o projeto passou por uma revisão externa: corrigi as falhas de segurança apontadas e
+[documentei com transparência o que ainda pode melhorar](docs/arquitetura.md#7-limitações-conhecidas-e-próximos-passos).
+
+**Para conferir em 1 minuto:** o selo verde ✅ acima mostra que todos os testes passaram na última alteração,
+e a [**página de relatórios**](https://QApedroHenrique.github.io/qa-lab-api-pagamentos/) mostra o resultado
+de cada teste, sem precisar instalar nada.
 
 ---
 
