@@ -163,10 +163,10 @@ sequenceDiagram
     alt assinatura inválida
         API-->>P: 401 ASSINATURA_INVALIDA
     else assinatura válida
-        API->>DB: BEGIN; SELECT conta FOR UPDATE
+        API->>DB: BEGIN + SELECT conta FOR UPDATE
         API->>DB: INSERT evento ... ON CONFLICT DO NOTHING
         alt evento novo
-            API->>DB: crédito + lançamento; COMMIT
+            API->>DB: crédito + lançamento + COMMIT
             API-->>P: 200 PROCESSADO
         else evento repetido
             API->>DB: COMMIT (nada muda)
