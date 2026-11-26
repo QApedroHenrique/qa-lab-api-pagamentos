@@ -16,6 +16,7 @@ de testes automatizados.**
 
 [**📊 Ver relatórios de teste**](https://QApedroHenrique.github.io/qa-lab-api-pagamentos/) ·
 [**📚 Documentação**](#-documentação) ·
+[**🤖 Fluxo com IA**](#-desenvolvimento-assistido-por-ia-claude-code) ·
 [**▶️ Como rodar**](#️-como-rodar)
 
 </div>
@@ -166,6 +167,30 @@ Passo a passo completo, Postman pela interface e solução de problemas: [**docs
 
 ---
 
+## 🤖 Desenvolvimento assistido por IA (Claude Code)
+
+Em vez de um prompt enorme com tudo de uma vez, cada mudança passa por **skills em camadas**
+([`.claude/skills/`](.claude/skills)), executadas como comandos `/` no Claude Code dentro do VS Code.
+Cada etapa tem um papel só, gera um artefato em `.claude/tasks/<slug>/` e a próxima parte dele:
+menos contexto repetido, menos "invenção" e mais rastreabilidade.
+
+```mermaid
+flowchart LR
+    A["/task<br/>task.md"] --> B["/plano<br/>plano.md"] --> C["/questionar<br/>questoes.md"] --> D["/feature<br/>código + testes + docs"] --> E["/revisar<br/>revisao.md"]
+```
+
+| Skill | Papel | O que garante |
+|---|---|---|
+| [`/task`](.claude/skills/task/SKILL.md) | Especificar | Pedido solto vira regra com valores exatos (centavos, status, código de erro) e critérios de aceite |
+| [`/plano`](.claude/skills/plano/SKILL.md) | Planejar | Arquivos, passos, casos de teste com ID/técnica ISTQB e checagem dos riscos de pagamento |
+| [`/questionar`](.claude/skills/questionar/SKILL.md) | QA cético | **Não concorda por padrão**: aponta o que não foi validado (valor-limite, concorrência, idempotência, LGPD, contrato) antes do código existir |
+| [`/feature`](.claude/skills/feature/SKILL.md) | Implementar | Segue o plano, escreve testes e docs, roda `npm test` e `docs:verificar` |
+| [`/revisar`](.claude/skills/revisar/SKILL.md) | Revisar | Confere critérios de aceite, regras de pagamento, segurança e rastreabilidade, com veredito |
+
+O [`CLAUDE.md`](CLAUDE.md) dá o contexto fixo do projeto (stack, comandos e regras que não podem ser quebradas).
+
+---
+
 ## 📚 Documentação
 
 | Documento | Conteúdo |
@@ -199,6 +224,7 @@ Passo a passo completo, Postman pela interface e solução de problemas: [**docs
 ├── sql/                  # consultas de consistência e de investigação
 ├── docs/                 # documentação de teste
 ├── scripts/              # rastreabilidade e página de relatórios
+├── .claude/skills/       # fluxo de IA: task → plano → questionar → feature → revisar
 └── .github/workflows/    # pipeline de CI
 ```
 
