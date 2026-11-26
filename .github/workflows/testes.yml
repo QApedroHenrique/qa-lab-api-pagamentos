@@ -1,0 +1,102 @@
+name: Testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    name: Jest + Newman
+    runs-on: ubuntu-latest
+
+    # Banco real (Postgres) só para esta execução
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: qa
+          POSTGRES_PASSWORD: qa
+          POSTGRES_DB: pagamentos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U qa -d pagamentos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://qa:qa@localhost:5432/pagamentos
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar rastreabilidade (testes x documentação)
+        run: npm run docs:verificar
+
+      - name: Suíte automatizada (Jest)
+        run: npm run test:ci
+
+      - name: Subir a API para a regressão Postman
+        run: |
+          npm start > api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/saude && exit 0
+            sleep 1
+          done
+          echo "A API não subiu a tempo"; cat api.log; exit 1
+
+      - name: Regressão encadeada (Newman)
+        run: npm run test:newman
+
+      - name: Gerar página e resumo dos relatórios
+        if: always()
+        run: node scripts/resumo-relatorios.js
+
+      - name: Guardar relatórios como artefato
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-de-teste
+          path: reports/
+          retention-days: 30
+
+      - name: Preparar relatórios para o GitHub Pages
+        if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports/
+
+  publicar-relatorios:
+    name: Publicar relatórios no GitHub Pages
+    needs: testes
+    if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.testes.result != 'cancelled'
+    runs-on: ubuntu-latest
+    # Se o GitHub Pages ainda não estiver ativado no repositório, esta etapa falha
+    # sem deixar o workflow (e o badge do README) vermelho.
+    continue-on-error: true
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Publicar
+        id: deploy
+        uses: actions/deploy-pages@v4

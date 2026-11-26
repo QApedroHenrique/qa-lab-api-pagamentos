@@ -1,0 +1,8 @@
+node_modules
+reports
+tests
+postman
+docs
+.github
+.env
+*.log
